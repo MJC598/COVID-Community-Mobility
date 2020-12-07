@@ -5,81 +5,90 @@ from sklearn.preprocessing import MinMaxScaler # pylint: disable=import-error
 from sklearn.linear_model import LinearRegression # pylint: disable=import-error
 from sklearn.svm import SVR # pylint: disable=import-error
 from sklearn.kernel_ridge import KernelRidge # pylint: disable=import-error
+from sklearn.neighbors import KernelDensity # pylint: disable=import-error
 from mpl_toolkits.mplot3d import Axes3D  # pylint: disable=import-error
 import matplotlib.pyplot as plt # pylint: disable=import-error
-
+from scipy.stats import norm # pylint: disable=import-error
+import data_processing
 pds.set_option('display.max_columns', None)
 
-PATH_TO_GOOGLE_CSV = '/home/matt/data/covid_community_mobility/Global_Mobility_Report_11_27_20.csv'
-PATH_TO_NYTIME_CSV = '/home/matt/data/covid_community_mobility/us-states.csv'
+reshape_value = 261 #255
+window_size = 8 #14
+state = 'New York'
 
-df_google = pds.read_csv(PATH_TO_GOOGLE_CSV, low_memory=False)
-df_nytime = pds.read_csv(PATH_TO_NYTIME_CSV)
-only_mo_google = (df_google.loc[df_google['sub_region_1'] == 'Missouri'].sort_values('date'))[['sub_region_1', 'sub_region_2', 'metro_area', 'date', 
-    'retail_and_recreation_percent_change_from_baseline', 'grocery_and_pharmacy_percent_change_from_baseline', 'parks_percent_change_from_baseline',
-    'transit_stations_percent_change_from_baseline', 'workplaces_percent_change_from_baseline', 'residential_percent_change_from_baseline']]
-mo_google = ((only_mo_google.loc[pds.isna(only_mo_google['sub_region_2'])].sort_values('date'))[['date', 
-    'retail_and_recreation_percent_change_from_baseline', 'grocery_and_pharmacy_percent_change_from_baseline', 'parks_percent_change_from_baseline',
-    'transit_stations_percent_change_from_baseline', 'workplaces_percent_change_from_baseline', 'residential_percent_change_from_baseline']]
-                .set_index('date')).loc['2020-03-07':]
-mo_nytime = ((((df_nytime.loc[df_nytime['state'] == 'Missouri'].sort_values('date'))[['date', 'new_cases']])
-                .set_index('date')).loc[:'2020-11-24'])
-mo_nytime_np = mo_nytime.to_numpy()
+state_google, state_nytime = data_processing.get_df(state)
+
+state_nytime_np = state_nytime.to_numpy()
 
 scaler = MinMaxScaler()
 
-# retail_norm = scaler.fit_transform((mo_google['retail_and_recreation_percent_change_from_baseline'].to_numpy()).reshape(-1, 1))
-# grocery_norm = scaler.fit_transform((mo_google['grocery_and_pharmacy_percent_change_from_baseline'].to_numpy()).reshape(-1, 1))
-# parks_norm = scaler.fit_transform((mo_google['grocery_and_pharmacy_percent_change_from_baseline'].to_numpy()).reshape(-1, 1))
-# transit_norm = scaler.fit_transform((mo_google['grocery_and_pharmacy_percent_change_from_baseline'].to_numpy()).reshape(-1, 1))
-# work_norm = scaler.fit_transform((mo_google['grocery_and_pharmacy_percent_change_from_baseline'].to_numpy()).reshape(-1, 1))
-# residential_norm = scaler.fit_transform((mo_google['grocery_and_pharmacy_percent_change_from_baseline'].to_numpy()).reshape(-1, 1))
-# normalized_info = np.concatenate((retail_norm, grocery_norm, parks_norm, transit_norm, work_norm, mo_nytime_np), axis=1)
-# retail_norm = normalize((mo_google['retail_and_recreation_percent_change_from_baseline'].to_numpy()).reshape(-1, 1))
-# print(normalized_info)
-# print(normalized_info.shape)
-# print(mo_nytime_np.shape)
+reta = scaler.fit_transform((state_google['retail_and_recreation_percent_change_from_baseline'].to_numpy()).reshape(-1, 1))
+groc = scaler.fit_transform((state_google['grocery_and_pharmacy_percent_change_from_baseline'].to_numpy()).reshape(-1, 1))
+park = scaler.fit_transform((state_google['grocery_and_pharmacy_percent_change_from_baseline'].to_numpy()).reshape(-1, 1))
+tran = scaler.fit_transform((state_google['grocery_and_pharmacy_percent_change_from_baseline'].to_numpy()).reshape(-1, 1))
+work = scaler.fit_transform((state_google['grocery_and_pharmacy_percent_change_from_baseline'].to_numpy()).reshape(-1, 1))
+resi = scaler.fit_transform((state_google['grocery_and_pharmacy_percent_change_from_baseline'].to_numpy()).reshape(-1, 1))
 
-reta = (mo_google['retail_and_recreation_percent_change_from_baseline'].to_numpy()).reshape(-1, 1)
-groc = (mo_google['grocery_and_pharmacy_percent_change_from_baseline'].to_numpy()).reshape(-1, 1)
-park = (mo_google['grocery_and_pharmacy_percent_change_from_baseline'].to_numpy()).reshape(-1, 1)
-tran = (mo_google['grocery_and_pharmacy_percent_change_from_baseline'].to_numpy()).reshape(-1, 1)
-work = (mo_google['grocery_and_pharmacy_percent_change_from_baseline'].to_numpy()).reshape(-1, 1)
-resi = (mo_google['grocery_and_pharmacy_percent_change_from_baseline'].to_numpy()).reshape(-1, 1)
+# reta = (state_google['retail_and_recreation_percent_change_from_baseline'].to_numpy()).reshape(-1, 1)
+# groc = (state_google['grocery_and_pharmacy_percent_change_from_baseline'].to_numpy()).reshape(-1, 1)
+# park = (state_google['grocery_and_pharmacy_percent_change_from_baseline'].to_numpy()).reshape(-1, 1)
+# tran = (state_google['grocery_and_pharmacy_percent_change_from_baseline'].to_numpy()).reshape(-1, 1)
+# work = (state_google['grocery_and_pharmacy_percent_change_from_baseline'].to_numpy()).reshape(-1, 1)
+# resi = (state_google['grocery_and_pharmacy_percent_change_from_baseline'].to_numpy()).reshape(-1, 1)
+
+comm_move_data = np.concatenate((reta, groc, park, tran, work, resi), axis=1)
 
 using_var = reta
 
 indices = np.array([i for i in range(263)]).reshape(-1, 1)
 
-data = np.concatenate((indices, mo_nytime_np, using_var), axis=1)
+windowed_move_data = data_processing.rolling_window(comm_move_data, window_size).reshape(reshape_value, (window_size * 6))
 
-train_data = data[1:].reshape(-1,3,1)[::2].reshape(-1,3)
-test_data = data[:263].reshape(-1,3,1)[::2].reshape(-1,3)
+# print(indices.shape)
+# print(state_nytime_np.shape)
+# print(comm_move_data.shape)
+print(windowed_move_data.shape)
 
-svm_model = SVR(kernel='linear').fit(train_data[:,[0,1]],train_data[:,2])
-svm_predict = svm_model.predict(test_data[:,[0,1]])
-lr_model = LinearRegression().fit(train_data[:,[0,1]],train_data[:,2])
-lr_predict = lr_model.predict(test_data[:,[0,1]])
-kr_model = KernelRidge(kernel='rbf', alpha=0.7).fit(train_data[:,[0,1]],train_data[:,2])
-kr_predict = kr_model.predict(test_data[:,[0,1]])
-print("SVM Score: " + str(svm_model.score(test_data[:,[0,1]], test_data[:,2])))
-print("LR Score: " + str(lr_model.score(test_data[:,[0,1]], test_data[:,2])))
-print("KR Score: " + str(kr_model.score(test_data[:,[0,1]], test_data[:,2])))
+# data = np.concatenate((indices[:reshape_value], state_nytime_np[:reshape_value], windowed_move_data), axis=1)
+data = np.concatenate((state_nytime_np[:reshape_value], windowed_move_data), axis=1)
+
+
+train_data = data[1:].reshape(-1,((window_size*6)+1),1)[::2].reshape(-1,((window_size*6)+1))
+
+test_data = data[:reshape_value].reshape(-1,((window_size*6)+1),1)[::2].reshape(-1,((window_size*6)+1))
+
+idx_OUT_columns = [0]
+idx_IN_columns = [i for i in range(np.shape(data)[1]) if i not in idx_OUT_columns]
+
+svm_model = SVR(kernel='poly', degree=2).fit(train_data[:,idx_IN_columns],train_data[:,0])
+svm_predict = svm_model.predict(test_data[:,idx_IN_columns])
+lr_model = LinearRegression().fit(train_data[:,idx_IN_columns],train_data[:,0])
+lr_predict = lr_model.predict(test_data[:,idx_IN_columns])
+kr_model = KernelRidge(kernel='poly', degree=5, alpha=0.9).fit(train_data[:,idx_IN_columns],train_data[:,0])
+kr_predict = kr_model.predict(test_data[:,idx_IN_columns])
+kd_model = KernelDensity(kernel='cosine', bandwidth=0.2).fit(train_data[:,idx_IN_columns],train_data[:,0])
+kd_predict = kd_model.score_samples(test_data[:,idx_IN_columns])
+# print("SVM Score: " + str(svm_model.score(test_data[:,idx_IN_columns], test_data[:,0])))
+print("LR Score: " + str(lr_model.score(test_data[:,idx_IN_columns], test_data[:,0])))
+print("KR Score: " + str(kr_model.score(test_data[:,idx_IN_columns], test_data[:,0])))
+# print("KD Score: " + str(kd_model.score(test_data[:,idx_IN_columns], test_data[:,0])))
 
 fig = plt.figure()
-ax = Axes3D(fig)
+# ax = Axes3D(fig)
 indices = indices.reshape(1, -1)
 reta = reta.reshape(1, -1)
-mo_nytime_np = mo_nytime_np.reshape(1, -1)
-ax.scatter(train_data[:,0], train_data[:,1], train_data[:,2], marker='o')
-plt.plot(test_data[:,0], test_data[:,1], svm_predict, color='red')
-plt.plot(test_data[:,0], test_data[:,1], lr_predict, color='green')
-plt.plot(test_data[:,0], test_data[:,1], kr_predict, color='darkviolet')
+state_nytime_np = state_nytime_np.reshape(1, -1)
+plt.scatter(test_data[:,1], test_data[:,0], marker='o')
+# plt.plot(test_data[:,1], svm_predict, color='red')
+plt.plot(test_data[:,1], lr_predict, color='green')
+plt.plot(test_data[:,1], kr_predict, color='darkviolet')
+# plt.plot(test_data[:,1], kd_predict, color='y')
 
-ax.set_xlabel('Date from March 7, 2020')
-ax.set_ylabel('New Cases')
-ax.set_zlabel('Retail Percent Change from Baseline')
-ax.set_zlim3d(-50, 50)
+# ax.text2D(0.05, 0.95, 'Linear Regression, Kernel Ridge, and SVR over 7 Day Time Series')
+# plt.xlabel('Date from March 7, 2020')
+plt.ylabel('New Cases')
+plt.xlabel('Retail Percent Change from Baseline')
+# plt.ylim(-75, 75)
 
 plt.show()
 
