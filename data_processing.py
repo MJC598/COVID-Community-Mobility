@@ -20,7 +20,7 @@ def get_df(state):
     state_google = ((specific_google.loc[pds.isna(specific_google['sub_region_2'])].sort_values('date'))[['date', 
         'retail_and_recreation_percent_change_from_baseline', 'grocery_and_pharmacy_percent_change_from_baseline', 'parks_percent_change_from_baseline',
         'transit_stations_percent_change_from_baseline', 'workplaces_percent_change_from_baseline', 'residential_percent_change_from_baseline']]
-                    .set_index('date')).loc['2020-03-02':]
+                    .set_index('date')).loc['2020-03-06':] #2020-03-02
 
     state_nytime = ((((df_nytime.loc[df_nytime['state'] == state].sort_values('date'))[['date', 'new_cases']])
                 .set_index('date')).loc[:'2020-11-24'])
